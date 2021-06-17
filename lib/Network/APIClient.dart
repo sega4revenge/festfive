@@ -1,15 +1,18 @@
 import 'package:festfive/Config/ConfigBase.dart';
 import 'package:dio/dio.dart';
+import 'package:festfive/Config/Result.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'APIResponse.dart';
 import 'APIRouteConfigurable.dart';
+import 'AuthInterceptor.dart';
 import 'TypeDecodable.dart';
 
 abstract class BaseAPIClient {
 
-  Future<ResponseWrapper<T>> request<T extends Decodable>({
+  Future<Result> request<T extends Decodable>({
     @required APIRouteConfigurable route,
-    @required Create<T> create,
+    Create<T>? create,
     dynamic data,
   });
 
@@ -20,43 +23,63 @@ class APIClient implements BaseAPIClient {
   Dio? instance;
 
   APIClient() {
-    instance = Dio(options);
+    instance = Dio(options)..interceptors.add(AuthInterceptor())
+      ..interceptors.add(LogInterceptor(responseBody: true, requestBody: true));;
   }
 
   @override
-  Future<ResponseWrapper<T>> request<T extends Decodable>({
+  Future<Result> request<T extends Decodable>({
     @required APIRouteConfigurable? route,
-    @required Create<T>? create,
+    Create<T>? create,
     dynamic data,
   }) async {
-    
     final config = route?.getConfig();
     if (config == null)  {
       final error = ErrorResponse(
-          message: 'Config Null'
+          message: 'Config Null', statusCode: 400
       );
-      throw error;
+      return Result.error(error);
     }
     config.baseUrl = options.baseUrl;
-      final response = await instance?.fetch(config);
-      if (response == null) {
-        final error = ErrorResponse(
-            message: 'Response Null'
-        );
-        throw error;
+      try {
+        final response = await instance?.fetch(config);
+        if (response == null) {
+          final error = ErrorResponse(
+              message: 'Response Null', statusCode: 400
+          );
+          return Result.error(error);
+        }
+
+        final responseData = response.data;
+        if (create != null) {
+          ResponseWrapper responseWrapper = ResponseWrapper.init(create: create, json: responseData);
+          return Result.success(responseWrapper.response);
+        } else {
+          ResponseWrapper responseWrapper = ResponseWrapper.init(create: () => APIResponse(create: () => NoData()), json: responseData);
+              return Result.success(responseWrapper.response);
+        }
+      } on DioError catch (e) {
+        final responseData = e.response?.data;
+        if (create != null) {
+          ResponseWrapper responseWrapper = ResponseWrapper.init(create: create, json: responseData);
+          return Result.error(responseWrapper.response);
+        } else {
+          ResponseWrapper responseWrapper = ResponseWrapper.init(create: () => APIResponse(create: () => NoData()), json: responseData);
+          return Result.error(responseWrapper.response);
+        }
       }
-      final responseData = response.data;
-      if (response.statusCode == 200 && create != null) {
-        return ResponseWrapper.init(create: create, json: responseData);
-      }
 
-      final errorResponse = ErrorResponse(
-          message: 'Request failed with status code: ${response.statusCode}'
-      );
+  }
+}
 
-      throw errorResponse;
+class NoData implements Decodable<NoData> {
+  String name = '';
+  String symbol = '';
+  int rank = 0;
 
-
+  @override
+  NoData decode(dynamic data) {
+    return this;
   }
 
 }

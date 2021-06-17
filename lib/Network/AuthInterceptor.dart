@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
-
-import 'APIClient.dart';
+import 'package:festfive/Application/main.dart';
 import 'TypeDecodable.dart';
 
 class AuthToken implements Decodable<AuthToken> {
@@ -28,32 +27,19 @@ class AuthToken implements Decodable<AuthToken> {
   }
 }
 
+
 class AuthInterceptor extends InterceptorsWrapper {
-
-  final APIClient client;
-  AuthToken token;
-
-  AuthInterceptor(this.client, this.token); 
 
   @override
   Future onRequest(
     RequestOptions options, 
     RequestInterceptorHandler handler
   ) async {
-
-    if (options.extra['no_auth'] ?? false) {
-      return super.onRequest(options, handler);
+    final token = spUtil?.getString("token");
+    if (token != null) {
+      options.headers['Authorization'] = token;
     }
 
-    if (token.isExpired()) {
-      client.instance?.lock();
-      print('Lock request for refreshing token...');
-      await token.startRefreshToken();
-      client.instance?.unlock();
-      print('Refresh token completed!');
-    }
-
-    options.headers['Authorization'] = token.accessToken;
 
     return super.onRequest(options, handler);
 

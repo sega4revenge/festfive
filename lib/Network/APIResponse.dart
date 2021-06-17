@@ -24,42 +24,47 @@ abstract class GenericObject<T> {
 ///Used it as return object of APIController to handle any kind of response.
 
 class ResponseWrapper<T> extends GenericObject<T> {
-  
-  T? response;
+  late T response;
   ErrorResponse? error;
 
   ResponseWrapper({ required Create<Decodable> create, this.error })
   : super(create: create);
 
-  factory ResponseWrapper.init({ 
-    required Create<Decodable> create,
+  factory ResponseWrapper.init({
+    required Create<Decodable> create, int? statusCode,
     required Map<String, dynamic> json })
   {
     final wrapper = ResponseWrapper<T>(create: create);
     wrapper.response = wrapper.genericObject(json);
     return wrapper;
   }
-  
 }
 
-class APIResponse<T> extends GenericObject<T> 
+class APIResponse<T> extends GenericObject<T>
   implements Decodable<APIResponse<T>> {
-  
+  String? message;
   String? status;
   T? data;
 
   APIResponse({ required Create<Decodable> create }) : super(create: create);
 
+
   @override
   APIResponse<T> decode(dynamic json) {
     status = json['status'];
-    data = genericObject(json['data']);
+    message = json['message'];
+    if (json['data'] == null)  {
+      data = null;
+    } else {
+      data = genericObject(json['data']);
+    }
+
     return this;
   }
 
 }
 
-class APIListResponse<T> extends GenericObject<T> 
+class APIListResponse<T> extends GenericObject<T>
   implements Decodable<APIListResponse<T>> {
   List<T>? data;
 
@@ -77,13 +82,13 @@ class APIListResponse<T> extends GenericObject<T>
 }
 
 class ErrorResponse implements Exception {
-
+  int statusCode;
   String? message;
 
-  ErrorResponse({ this.message });
+  ErrorResponse({ this.message, required this.statusCode });
 
   factory ErrorResponse.fromJson(Map<String, dynamic> json) {
-    return ErrorResponse(message: json['message'] ?? 'Something went wrong.');
+    return ErrorResponse(message: json['message'] ?? 'Something went wrong.', statusCode: json['status']);
   }
 
   @override
